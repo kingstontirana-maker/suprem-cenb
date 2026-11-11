@@ -62,6 +62,7 @@ function renderKpis(){
   ['Botat','<b>'+playing+' <small class="muted">/ '+on+' / '+b.length+'</small></b>','<span>në tavolinë / ndezur / gjithsej</span>'],
   ['Lojtarë që luajnë me bota','<b>'+humans+'</b>','<span>lojtarë të vërtetë në tavolina me bota</span>'],
   ['Rake nga botat','<b>'+eur(rake)+'</b>','<span>kthehet te qendra · gjithsej '+(house>=0?'+':'')+eur(house)+'</span>'],
+  ['Kthyer te lojtarët','<b>'+eur(b.reduce((n,x)=>n+(x.returned||0),0))+'</b>','<span>Objektivi '+Number(g.returnPercent||0)+'% · në dispozicion '+eur(b.reduce((n,x)=>n+(x.returnAvailable||0),0))+'</span>'],
   ['Kredia e qendrës','<b>'+eur(data.centerBalance)+'</b>','<span>nga këtu financohen botat</span>'],
  ].map(([k,v,s])=>'<div class="kpi"><small>'+k+'</small>'+v.replace(/^<b class/,'<b class')+s+'</div>').join('');
  const stopped=g.stopped||[];$('#banner').classList.toggle('hidden',!stopped.length);$('#banner').textContent=stopped.length?'Limiti i shtëpisë u arrit ('+stopped.map(x=>x.replace('House ','').replace(' limit reached','')).join(', ')+'): të gjithë botat u ndalën dhe nisin vetë në periudhën tjetër.':'';
@@ -76,6 +77,7 @@ function renderBots(){
   return '<article class="bot'+(b.seatedAt?' on':'')+(err?' err':'')+'" data-id="'+safe(b.id)+'"><div class="botHead"><span class="avatar">'+safe(b.name[0].toUpperCase())+'</span><div><strong>'+safe(b.name)+'</strong><small>'+safe(statusSq(b.status))+'</small></div><span class="pill'+(b.enabled?' on':err?' warn':'')+'">'+(b.enabled?'Ndezur':'Fikur')+'</span></div>'
   +'<div class="tag">'+safe(b.style)+' · '+(b.mode==='seat'?'vetëm vend':'luan duar')+' · '+(b.tableId==='auto'?'Auto · '+b.buyinBB+' BB'+(b.maxBB>0?' · deri '+eur(b.maxBB)+' BB':''):safe(b.tableName)+' · '+eur(b.buyin))+' · humbje max '+eur(b.stopLoss)+(b.stopWin>0?' · fitim max '+eur(b.stopWin):'')+'</div>'
   +'<div class="stats"><div><small>Portofol + stack</small><b>'+eur(b.equity)+'</b></div><div><small>Kjo seancë</small>'+signed(b.session)+'</div><div><small>Që nga krijimi</small>'+signed(b.total)+'</div><div><small>Duar</small><b>'+b.hands+'</b></div><div><small>Rake</small><b>'+eur(b.rakePaid)+'</b></div><div><small>Shtëpia</small>'+signed(b.house)+'</div></div>'
+  +'<div class="stats returnStats"><div><small>Kthyer te lojtarët</small><b>'+eur(b.returned)+'</b></div><div><small>Në dispozicion për kthim</small><b>'+eur(b.returnAvailable)+'</b></div></div>'
   +'<div class="botBtns">'+(b.enabled?'<button class="small danger" data-act="stop">■ Ndalo</button>':'<button class="small gold" data-act="start">▶ Nis</button>')+'<button class="small" data-act="edit"'+(b.enabled||b.seatedAt?' disabled title="Ndale botin dhe prit sa të ngrihet"':'')+'>Ndrysho</button><button class="small" data-act="topup"'+(b.seatedAt?' disabled':'')+'>+ Para</button><button class="small ghost" data-act="delete"'+(b.enabled||b.seatedAt?' disabled':'')+'>Fshi</button></div>'
   +(editing===b.id?'<form class="edit grid" data-edit>'+configFields(b)+'<button class="gold">Ruaj</button><button type="button" class="ghost" data-act="cancel">Anulo</button></form>':'')+'</article>';}).join(''):'<div class="card empty">Nuk ka bota ende. Hap "Krijo".</div>';
  const f=list.querySelector('[data-edit]');if(f)bindConfig(f);
@@ -105,9 +107,29 @@ function renderOthers(){
  $('#moveList').innerHTML=table(['Kur','Boti','Tavolina','Dora ','Rruga','Veprimi','Shuma ','Poti ','Shanset '],data.decisions.map(d=>'<tr><td>'+ago(d.at)+'</td><td>'+safe(d.bot)+'</td><td>'+safe(d.table)+'</td>'+num('#'+d.hand)+'<td>'+(st[d.street]||d.street)+'</td><td>'+(sq[d.action]||d.action)+'</td>'+num(d.amount!=null?eur(d.amount):'')+num(eur(d.pot))+num(d.equity!=null?d.equity+'%':'—')+'</tr>'),'Asnjë vendim ende.');
  $('#logList').innerHTML=table(['Kur','Veprimi','Detaje','Adresa'],data.log.map(l=>'<tr><td>'+new Date(l.at).toLocaleString('en-GB')+'</td><td>'+safe(l.action)+'</td><td>'+safe(l.detail)+'</td><td class="muted">'+safe(l.ip)+'</td></tr>'),'Asnjë veprim ende.');
  $('#passForm').classList.toggle('hidden',!!data.signIn?.fromServer);
+ renderReturns();
  const f=$('#limitsForm');if(!f.contains(document.activeElement))for(const k of ['dailyLimit','weeklyLimit','monthlyLimit','maxBB','maxPerTable'])f[k].value=data.guard[k];
 }
 $('#limitsForm').onsubmit=async e=>{e.preventDefault();try{await api('bots/settings',Object.fromEntries(new FormData(e.target)));toast('Limitet u ruajtën');await refresh();}catch(err){toast(err.message,true);}};
+
+
+// Net-profit return settings have their own form and never overwrite other limits.
+const returnsForm=$('#returnsForm'),percentInput=$('#returnPercent'),rangeInput=$('#returnRange');
+function returnExample(){const p=Number(percentInput.value);$('#returnExample').textContent=Number.isFinite(p)&&p>=0&&p<=100?'Shembull: për 100 kredi fitim neto para kthimeve, objektivi është '+eur(p)+'. Kthimet e mëparshme zbriten nga objektivi.':'Vendos një përqindje nga 0 deri në 100.';}
+percentInput.addEventListener('input',()=>{returnsForm.dataset.dirty='1';if(percentInput.validity.valid)rangeInput.value=percentInput.value;returnExample();});
+rangeInput.addEventListener('input',()=>{returnsForm.dataset.dirty='1';percentInput.value=rangeInput.value;returnExample();});
+function renderReturns(){
+ const supported=Object.hasOwn(data.guard,'returnPercent'),p=Number(data.guard.returnPercent||0);
+ $('#returnControls').disabled=!supported;
+ $('#returnState').textContent=!supported?'Kërkon përditësim':p>0?p+'% aktiv':'I çaktivizuar';
+ $('#returnState').classList.toggle('on',supported&&p>0);
+ if(!returnsForm.dataset.dirty){percentInput.value=p;rangeInput.value=p;returnExample();}
+ $('#returnSaved').textContent=supported?'E ruajtur: '+p+'% · zbatohet te të gjithë botët.':'Serveri i pokerit nuk e mbështet ende këtë konfigurim. Përditësoje dhe rinise.';
+}
+returnsForm.onsubmit=async e=>{e.preventDefault();if(!returnsForm.reportValidity())return;const button=$('#saveReturns');button.disabled=true;
+ try{const result=await api('bots/settings',{returnPercent:Number(percentInput.value)});if(!Object.hasOwn(result,'returnPercent'))throw Error('Serveri nuk e konfirmoi përqindjen. Përditëso serverin e pokerit.');delete returnsForm.dataset.dirty;data.guard={...data.guard,...result};renderReturns();toast('Përqindja e kthimit u ruajt');await refresh();}
+ catch(err){toast(err.message,true);}finally{button.disabled=false;}
+};
 
 async function refresh(first=false){
  try{data=await api('overview');$('#live').classList.remove('off');renderKpis();renderForms();renderBots();renderOthers();}

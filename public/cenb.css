@@ -97,3 +97,14 @@ td.num,th.num{text-align:right}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #toast.bad{border-color:var(--red)}
 @media(max-width:600px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi{padding:12px}header.top{flex-wrap:wrap}.topActions{width:100%}.topActions button{flex:1}.kpi b{font-size:20px}.bots{grid-template-columns:1fr}}
+
+/* Net-profit return controls */
+.returnsHeading{display:flex;align-items:flex-start;gap:18px;justify-content:space-between}.returnsHeading .pill{flex:none;margin-top:6px}
+#returnControls{border:0;padding:0;margin:0;min-width:0}#returnControls:disabled{opacity:.5}
+.returnsInputs{display:grid;grid-template-columns:minmax(160px,240px) minmax(0,1fr);gap:24px;align-items:end}
+.returnSlider{min-width:0}.returnSlider label{display:block;font-size:12px;color:var(--muted);margin-bottom:10px}
+#returnRange{width:100%;padding:0;min-height:32px;accent-color:var(--gold);cursor:pointer}
+.rangeMarks{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+.returnExample{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#07100d}
+#returnSaved{color:var(--muted);font-size:12px;margin-bottom:0}.returnStats{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:600px){.returnsInputs{grid-template-columns:1fr;gap:16px}.returnsHeading{flex-direction:column;gap:0}.returnsHeading .pill{margin:0 0 16px}.returnStats small{letter-spacing:0}}
